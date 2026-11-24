@@ -1,0 +1,9 @@
+.venv
+.git
+data/raw
+storage
+notebook
+results/load_tests/raw
+**/__pycache__
+*.md
+!README.md

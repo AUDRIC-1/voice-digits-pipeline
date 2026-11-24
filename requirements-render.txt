@@ -1,0 +1,9 @@
+# Light engine for small servers such as Render's free plan (512 MB).
+# No TensorFlow or librosa: the model runs in NumPy (src/lite.py).
+numpy==2.5.5
+scipy==1.18.1
+scikit-learn==1.9.1
+soundfile==0.14.0
+fastapi==0.165.0
+uvicorn==0.54.0
+python-multipart==0.0.34

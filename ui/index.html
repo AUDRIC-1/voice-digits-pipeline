@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Digits · ML pipeline</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm-7 9a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0H5Zm6 8v-2h2v2h3v2H8v-2h3Z" fill="currentColor"/></svg>
+    </span>
+    <div>
+      <h1>Voice Digits</h1>
+      <p>Spoken digit recognition for voice-first mobile money</p>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-tab="predict">Predict</button>
+    <button role="tab" data-tab="voice">My voice</button>
+    <button role="tab" data-tab="insights">Data insights</button>
+    <button role="tab" data-tab="retrain">Upload &amp; retrain</button>
+    <button role="tab" data-tab="evaluate">Evaluate</button>
+    <button role="tab" data-tab="load">Load test</button>
+  </nav>
+  <div class="status" id="status" title="API health, checked every 5 seconds">
+    <span class="dot" id="status-dot"></span><span id="status-text">connecting…</span>
+  </div>
+</header>
+
+<main>
+  <!-- OVERVIEW -->
+  <section id="overview" class="tab active">
+    <div class="tiles">
+      <div class="tile"><span class="label">API up for</span><span class="value" id="t-uptime">–</span><span class="sub" id="t-started"></span></div>
+      <div class="tile"><span class="label">Live model</span><span class="value" id="t-version">–</span><span class="sub" id="t-model-age"></span></div>
+      <div class="tile"><span class="label">Test accuracy</span><span class="value" id="t-acc">–</span><span class="sub" id="t-f1"></span></div>
+      <div class="tile"><span class="label">Predictions served</span><span class="value" id="t-preds">–</span><span class="sub" id="t-latency"></span></div>
+      <div class="tile"><span class="label">Health check</span><span class="value" id="t-ping">–</span><span class="sub" id="t-served">served by –</span></div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><h2>Is the API up? Health-check response time</h2><span class="hint">the page asks the API every 5 s; this is not a prediction</span></div>
+        <div class="chart"><canvas id="c-ping"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Prediction latency</h2><span class="hint">last 60 predictions, all containers</span></div>
+        <div class="chart"><canvas id="c-latency"></canvas>
+          <div class="empty" id="latency-empty" hidden><p>No predictions yet. Open the <strong>Predict</strong> tab and try a test file or record a digit; each prediction shows up here.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="card about">
+      <p><strong>Why this exists.</strong> In the financial-inclusion survey from the ML summative, people with little schooling and people in rural areas were the least likely to have an account. Phone menus assume you can read. This model lets someone <em>say</em> an amount or a phone number, digit by digit. The pipeline below keeps it learning new voices after it goes live.</p>
+    </div>
+  </section>
+
+  <!-- PREDICT -->
+  <section id="predict" class="tab">
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><h2>Predict one recording</h2></div>
+        <p class="muted">Upload a .wav of one spoken digit (0–9), or record one with your microphone.</p>
+        <div class="row">
+          <label class="btn file">Choose a .wav file<input type="file" id="p-file" accept=".wav,.flac,.ogg,.mp3,audio/*" hidden></label>
+          <button class="btn" id="p-record">● Record 2 s</button>
+          <button class="btn ghost" id="p-sample">Try a test file</button>
+        </div>
+        <audio id="p-audio" controls hidden></audio>
+        <div class="result" id="p-result" hidden>
+          <div class="big-digit" id="p-digit">–</div>
+          <div>
+            <div class="result-word" id="p-word"></div>
+            <div class="muted" id="p-meta"></div>
+          </div>
+        </div>
+        <div class="hint" id="p-error"></div>
+        <div class="save-record" id="p-save" hidden>
+          <span>Was it wrong? Save this recording with the right digit for retraining:</span>
+          <select id="p-save-label"></select>
+          <button class="btn small" id="p-save-btn">Save</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Probability for each digit</h2></div>
+        <div class="chart tall"><canvas id="c-proba"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MY VOICE -->
+  <section id="voice" class="tab">
+    <div class="card voice-intro">
+      <div class="row between">
+        <p class="muted">The model learned from other people's voices. Test how well it knows <strong>yours</strong>, then teach it: your labelled recordings go into the retraining data. Speak English digits: zero, one, two … nine.</p>
+        <label>Your name <input id="v-name" placeholder="e.g. amina" maxlength="20"></label>
+      </div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><h2>1 · Test it on your voice</h2><span class="hint">10 digits in random order</span></div>
+        <p class="muted">A digit appears. When the box turns red and says <strong>Speak now</strong>, say it. You get a score at the end.</p>
+        <div class="row">
+          <button class="btn primary" id="v-test">Start the test</button>
+          <label class="check"><input type="checkbox" id="v-save" checked> save these recordings for retraining</label>
+        </div>
+        <div class="prompt" id="v-test-prompt" hidden><div class="say"></div><div class="state"></div></div>
+        <div class="score" id="v-score" hidden></div>
+        <div class="chips" id="v-chips"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>2 · Teach it your voice</h2><span class="hint">each digit a few times</span></div>
+        <p class="muted">Say each digit when asked. Every clip is saved with the right label. Then press <strong>Retrain on my voice</strong>: the live model is fine-tuned on your clips plus the original data, and goes live only if it is not worse on the test set.</p>
+        <div class="row">
+          <label>Rounds <select id="v-rounds"><option value="2">2 (20 clips, ~1.5 min)</option><option value="3" selected>3 (30 clips, ~2 min)</option><option value="5">5 (50 clips, ~3.5 min)</option></select></label>
+          <button class="btn primary" id="v-teach">Start recording</button>
+        </div>
+        <div class="prompt" id="v-teach-prompt" hidden><div class="say"></div><div class="state"></div></div>
+        <div class="progress" id="v-teach-progress" hidden><div class="bar" id="v-teach-bar"></div></div>
+        <div class="hint" id="v-teach-status"></div>
+        <button class="btn primary" id="v-retrain" hidden>Retrain on my voice</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSIGHTS -->
+  <section id="insights" class="tab">
+    <div class="subtabs" role="tablist">
+      <button data-sub="i-duration" aria-selected="true">1 · How long each digit is</button>
+      <button data-sub="i-zcr">2 · Hissing sounds</button>
+      <button data-sub="i-pitch">3 · Voices differ</button>
+      <button data-sub="i-spec">4 · Digit fingerprints</button>
+      <button data-sub="i-counts">Class balance</button>
+    </div>
+    <div class="sub active" id="i-duration">
+      <div class="card insight">
+        <div class="chart"><canvas id="c-duration"></canvas></div>
+        <div class="story" id="s-duration"></div>
+      </div>
+    </div>
+    <div class="sub" id="i-zcr">
+      <div class="card insight">
+        <div class="chart"><canvas id="c-zcr"></canvas></div>
+        <div class="story" id="s-zcr"></div>
+      </div>
+    </div>
+    <div class="sub" id="i-pitch">
+      <div class="card insight">
+        <div class="chart"><canvas id="c-pitch"></canvas></div>
+        <div class="story" id="s-pitch"></div>
+      </div>
+    </div>
+    <div class="sub" id="i-spec">
+      <div class="card insight">
+        <div>
+          <div class="row" id="spec-picker"></div>
+          <canvas id="c-spec" width="510" height="200" class="spec"></canvas>
+          <div class="axis-note"><span>0 s</span><span>time →</span><span>1 s</span></div>
+        </div>
+        <div class="story" id="s-spec"></div>
+      </div>
+    </div>
+    <div class="sub" id="i-counts">
+      <div class="card insight">
+        <div class="chart"><canvas id="c-counts"></canvas></div>
+        <div class="story" id="s-counts"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RETRAIN -->
+  <section id="retrain" class="tab">
+    <div class="grid three">
+      <div class="card">
+        <div class="card-head"><h2>1 · Upload new recordings</h2></div>
+        <p class="muted">Many .wav files at once, or one .zip. Name files like <code>7_amina_1.wav</code> or put them in folders named 0–9, or pick the digit below.</p>
+        <form id="u-form">
+          <label class="btn file wide">Choose files<input type="file" id="u-files" multiple accept=".wav,.zip,.flac,.ogg,.mp3" hidden></label>
+          <div class="muted" id="u-chosen">No files chosen</div>
+          <div class="form-row">
+            <label>Digit <select id="u-label"><option value="auto">from file names</option></select></label>
+            <label>Speaker <input id="u-speaker" placeholder="optional"></label>
+          </div>
+          <button class="btn primary wide" type="submit" id="u-submit">Upload</button>
+        </form>
+        <div class="hint" id="u-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>2 · Retraining trigger</h2></div>
+        <div class="trigger" id="trigger-box">
+          <div class="trigger-state" id="trigger-state">checking…</div>
+          <ul id="trigger-reasons"></ul>
+          <div class="muted" id="trigger-rules"></div>
+        </div>
+        <div class="kv" id="upload-totals"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>3 · Train</h2></div>
+        <p class="muted" id="r-explain"><strong>Retrain</strong> fine-tunes the live model on the old data plus every upload. <strong>Train from scratch</strong> starts over with random weights. Either way, the new model only goes live if it is not worse on the test set.</p>
+        <div class="row">
+          <button class="btn primary" id="r-retrain">Retrain now</button>
+          <button class="btn" id="r-train">Train from scratch</button>
+        </div>
+        <div class="progress" id="r-progress" hidden><div class="bar" id="r-bar"></div></div>
+        <div class="hint" id="r-status"></div>
+      </div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><h2>Training runs</h2></div>
+        <div class="table-wrap"><table id="runs-table"><thead><tr><th>#</th><th>Type</th><th>Status</th><th>New files</th><th>Test acc. before → after</th><th>Held-aside uploads before → after</th><th>Result</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Learning curve of the latest run</h2></div>
+        <div class="chart"><canvas id="c-history"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVALUATE -->
+  <section id="evaluate" class="tab">
+    <div class="card">
+      <div class="row between">
+        <div class="row">
+          <label>Data set
+            <select id="e-dataset">
+              <option value="unseen">Unseen voices (1,000 Speech Commands clips, speakers never trained on)</option>
+              <option value="test">Whole test set (1,250 clips)</option>
+              <option value="new_voice">New voice george (500 clips)</option>
+              <option value="uploads">Held-aside uploads</option>
+            </select>
+          </label>
+          <button class="btn primary" id="e-run">Evaluate live model</button>
+        </div>
+        <span class="hint" id="e-meta"></span>
+      </div>
+    </div>
+    <div class="tiles" id="e-tiles"></div>
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><h2>Confusion matrix</h2><span class="hint">rows: true digit · columns: predicted</span></div>
+        <div id="e-cm" class="cm"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Per digit</h2><span class="hint">precision, recall and F1</span></div>
+        <div class="chart"><canvas id="c-perclass"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOAD TEST -->
+  <section id="load" class="tab">
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><h2>More containers, same flood</h2><span class="hint">Locust, POST /predict, 60 s per run</span></div>
+        <div class="row" id="load-metric">
+          <button class="btn small primary" data-metric="median_ms">Median (ms)</button>
+          <button class="btn small" data-metric="p95_ms">95th percentile (ms)</button>
+          <button class="btn small" data-metric="rps">Requests per second</button>
+        </div>
+        <div class="chart"><canvas id="c-load"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Results</h2></div>
+        <div class="table-wrap"><table id="load-table"><thead><tr><th>Containers</th><th>Users</th><th>Requests</th><th>Failures</th><th>Req/s</th><th>Median ms</th><th>p95 ms</th><th>Average ms</th></tr></thead><tbody></tbody></table></div>
+        <p class="muted" id="load-note"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/static/chart.umd.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

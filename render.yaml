@@ -1,0 +1,21 @@
+# Render blueprint: the light engine on Render's free plan (512 MB).
+# Render reads this file when you choose New > Blueprint and pick this repo.
+services:
+  - type: web
+    name: voice-digits
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENGINE
+        value: lite
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: PREDICT_CONCURRENCY
+        value: "1"

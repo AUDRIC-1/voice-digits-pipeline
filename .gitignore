@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+.env
+
+# The raw download; data/train, data/test and data/new_voice are kept
+data/raw/
+
+# What the running app writes (uploads, database, retrained models)
+storage/
+
+# Locust's raw CSVs are summarised into results/load_tests/
+results/load_tests/raw/
