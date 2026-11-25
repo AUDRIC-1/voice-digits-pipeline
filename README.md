@@ -5,8 +5,8 @@ This project recognises a spoken digit (0 to 9) from a short recording. It is th
 | | |
 |---|---|
 | Video demo | YouTube: _add link_ |
-| Live app | _add the Render URL (see [Deploy to the cloud](#deploy-to-the-cloud))_ |
-| API docs | `<app URL>/docs` |
+| Live app | https://voice-digits.onrender.com (free plan: the first visit after 15 idle minutes takes about a minute) |
+| API docs | https://voice-digits.onrender.com/docs |
 | Notebook | [notebook/voice_digits_pipeline.ipynb](notebook/voice_digits_pipeline.ipynb) |
 
 ## Project description
@@ -250,7 +250,7 @@ For each container count, the script starts fresh containers, waits until all of
 
 ## Deploy to the cloud
 
-The live app runs on Render's free plan. That plan gives a web service 512 MB of memory and a small share of one CPU, and TensorFlow alone needs more memory than that. So the cloud copy runs the light engine (`ENGINE=lite`):
+The live app runs on Render's free plan at https://voice-digits.onrender.com. That plan gives a web service 512 MB of memory and a small share of one CPU, and TensorFlow alone needs more memory than that. So the cloud copy runs the light engine (`ENGINE=lite`):
 
 - The trained CNN runs in NumPy (`src/lite.py`). `scripts/export_lite.py` copies the weights out of `models/digit_cnn.h5` and checks the result: on the 1,250 test clips the NumPy model gives the same answer as Keras every time, with probabilities within 0.000002 of each other.
 - Preprocessing runs in NumPy and SciPy (`src/audio.py`) instead of librosa. On 400 recordings it matches librosa to within 0.00003 dB (`scripts/check_audio_parity.py`).
@@ -258,11 +258,21 @@ The live app runs on Render's free plan. That plan gives a web service 512 MB of
 
 Measured on a laptop in light mode, the app starts in 8 seconds and uses about 190 MB of memory, 310 MB at its peak during a retrain. `scripts/check_api.py` passes: after 400 uploads of george, the last-layer retrain took 10 seconds, held-aside uploads went from 96.7% to 98.9%, and the test set stayed at 95.6%.
 
+Checked on the live app on 25 November 2026, from the Evaluate tab's endpoint (`POST /evaluate`):
+
+| Data | Clips | Accuracy | F1 (macro) |
+|---|---|---|---|
+| Test set (FSDD and Speech Commands test speakers) | 1,250 | 95.6% | 95.6% |
+| Unseen Speech Commands voices | 1,000 | 94.7% | 94.7% |
+| george, the held-out FSDD speaker | 500 | 95.8% | 95.8% |
+
+These match the laptop numbers, so the cloud copy is the same model. One test clip of each digit sent to `/predict` came back right 10 times out of 10. The model itself took about 3 ms per clip on the server. The full round trip from a laptop, including the upload, took about 1.1 seconds.
+
 To deploy your own copy:
 
 1. Put the repo on GitHub.
 2. Sign in to https://render.com with GitHub. Choose New, then Blueprint, and pick the repo. Render reads `render.yaml`: it installs `requirements-render.txt` and starts the app with `ENGINE=lite`.
-3. The first build takes a few minutes. The app is then at `https://voice-digits-<something>.onrender.com`.
+3. The first build takes a few minutes. The app is then at `https://<service name>.onrender.com`.
 
 A free Render service goes to sleep after 15 minutes without visitors, and the first visit after that takes about a minute. Its disk is wiped when it restarts, so uploads and retrained versions only last until then; version 1 is always in the repo. The full TensorFlow engine (training from scratch, and the Docker image) needs a server with about 1.5 GB of memory, such as Google Cloud Run or Azure Container Apps.
 
