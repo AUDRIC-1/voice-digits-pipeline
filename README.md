@@ -240,6 +240,8 @@ Only 5 of the 16,248 requests failed, all of them connection resets under the he
 
 The laptop had less than 1 GB of RAM free, so the script also logged free RAM and Windows paging during each run (`results/load_tests/summary.md`). The first attempt collapsed. Other apps and services were still open, and each container ran every request at once, so one container at 100 users served 51 requests in a minute. Closing the other apps and letting each container run only 2 predictions at a time (`PREDICT_CONCURRENCY`) made the results usable. That limit is also the right setting in production, since running more threads than there are CPUs only adds switching overhead.
 
+The same Locust file was also run against the live app on Render (one free instance, light engine) on 25 November 2026: 20 users for 30 seconds, `locust -f locust/locustfile.py --host https://voice-digits.onrender.com --headless -u 20 -r 5 -t 30s`. It served 18 predictions per second with 0 failures in 282 requests. The median was 560 ms and the 95th percentile 850 ms. Most of that is the network trip to Render's server in the US: the API reports about 3 ms for the model itself.
+
 To run it yourself, with Docker Desktop running:
 
 ```bash

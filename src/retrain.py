@@ -152,6 +152,29 @@ def _load_uploads(rows):
     return X, np.array([r["label"] for r in rows], dtype=np.int64), rows
 
 
+_trigger_lock = threading.Lock()
+_trigger_acc = {}       # (pending count, last pending id, model version, loaded at) -> accuracy
+
+
+def _pending_accuracy(pending, predictor):
+    """The live model's accuracy on the waiting uploads.
+
+    Reading and scoring hundreds of recordings is the heaviest thing the API
+    does, and the dashboard asks for the trigger often. So the answer is kept
+    until the uploads or the live model change, and only one request works it
+    out while the others wait for it.
+    """
+    key = (len(pending), pending[-1]["id"], getattr(predictor, "version", None),
+           getattr(predictor, "loaded_at", None))
+    with _trigger_lock:
+        if key not in _trigger_acc:
+            X, y, _ = _load_uploads(pending)
+            acc = float((predictor.predict_inputs(X).argmax(1) == y).mean()) if len(y) else None
+            _trigger_acc.clear()
+            _trigger_acc[key] = acc
+        return _trigger_acc[key]
+
+
 def check_trigger(predictor=None):
     pending = database.pending_uploads()
     n = len(pending)
@@ -159,9 +182,8 @@ def check_trigger(predictor=None):
     if n >= RETRAIN_MIN_NEW_SAMPLES:
         reasons.append(f"{n} new recordings are waiting (limit {RETRAIN_MIN_NEW_SAMPLES})")
     if predictor is not None and n >= RETRAIN_MIN_FOR_ACCURACY:
-        X, y, _ = _load_uploads(pending)
-        if len(y):
-            acc = float((predictor.predict_inputs(X).argmax(1) == y).mean())
+        acc = _pending_accuracy(pending, predictor)
+        if acc is not None:
             if acc < RETRAIN_ACCURACY_TRIGGER:
                 reasons.append(f"the live model gets only {acc:.0%} of the new recordings right "
                                f"(below {RETRAIN_ACCURACY_TRIGGER:.0%})")

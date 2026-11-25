@@ -388,9 +388,11 @@ async function loadInsights() {
   // 1 duration
   rangeChart("c-duration", labels, I.by_digit.duration_s, "seconds", Array(10).fill(0), ["Spoken length"]);
   const d = order("duration_s"), dm = med("duration_s");
-  $("#s-duration").innerHTML = `<h3>Two-syllable digits take longest</h3>
+  const cap = (w) => w[0].toUpperCase() + w.slice(1);
+  const durLo = Math.min(...I.by_digit.duration_s.map((s) => s.q1)), durHi = Math.max(...I.by_digit.duration_s.map((s) => s.q3));
+  $("#s-duration").innerHTML = `<h3>${cap(WORDS[d[0]])} and ${WORDS[d[1]]} take longest</h3>
     <p>After cutting the silence, <strong>${WORDS[d[0]]}</strong> (${dm[d[0]].toFixed(2)} s) and <strong>${WORDS[d[1]]}</strong> (${dm[d[1]].toFixed(2)} s) are the longest words, and <strong>${WORDS[d[9]]}</strong> (${dm[d[9]].toFixed(2)} s) the shortest.</p>
-    <p>The bars overlap a lot, so length alone can't tell the digits apart. It does show that almost every word is shorter than 0.7 seconds, so a <strong>1-second window</strong> holds a whole word with room to spare.</p>`;
+    <p>The bars overlap a lot, so length alone can't tell the digits apart. The middle half of every digit lasts between ${durLo.toFixed(2)} and ${durHi.toFixed(2)} seconds, so a <strong>1-second window</strong> holds a whole word. For the few longer recordings, the app keeps the loudest second.</p>`;
 
   // 2 zero-crossing rate
   rangeChart("c-zcr", labels, I.by_digit.zcr, "zero-crossing rate", Array(10).fill(0), ["Zero-crossing rate"], 3);

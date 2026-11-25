@@ -19,3 +19,5 @@ services:
         value: "1"
       - key: PREDICT_CONCURRENCY
         value: "1"
+      - key: MALLOC_ARENA_MAX
+        value: "2"

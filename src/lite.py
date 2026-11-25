@@ -14,10 +14,17 @@ The original training clips are stored as their 64-number embeddings
 (models/lite/embeddings.npz), so retraining doesn't have to reprocess
 thousands of recordings on a slow CPU.
 """
+import threading
+
 import numpy as np
 from scipy.optimize import minimize
 
 from src.config import MODELS_DIR
+
+# One batch goes through the network at a time. Each batch needs a few tens
+# of MB of scratch memory; without this, a retrain, a trigger check and the
+# dashboard's requests running together could pass the 512 MB limit.
+_FORWARD = threading.Lock()
 
 LITE_DIR = MODELS_DIR / "lite"
 BASE_LITE_PATH = LITE_DIR / "digit_cnn.npz"
@@ -52,17 +59,18 @@ class NumpyCNN:
         z = dict(np.load(path)) if weights is None else weights
         self.w = {k: z[k].astype(np.float32) for k in z}
 
-    def embed(self, X, batch=64):
+    def embed(self, X, batch=32):
         """The 64 numbers the last layer sees (after the first dense layer)."""
         out = []
         for i in range(0, len(X), batch):
             x = np.asarray(X[i:i + batch], np.float32)
-            for k, name in enumerate(["conv1", "conv2", "conv3", "conv4"]):
-                x = _conv3x3_relu(x, self.w[f"{name}_w"], self.w[f"{name}_b"])
-                if k < 3:
-                    x = _maxpool2(x)
-            x = x.mean(axis=(1, 2))
-            out.append(np.maximum(x @ self.w["dense1_w"] + self.w["dense1_b"], 0))
+            with _FORWARD:
+                for k, name in enumerate(["conv1", "conv2", "conv3", "conv4"]):
+                    x = _conv3x3_relu(x, self.w[f"{name}_w"], self.w[f"{name}_b"])
+                    if k < 3:
+                        x = _maxpool2(x)
+                x = x.mean(axis=(1, 2))
+                out.append(np.maximum(x @ self.w["dense1_w"] + self.w["dense1_b"], 0))
         return np.concatenate(out) if out else np.zeros((0, 64), np.float32)
 
     def head_proba(self, E):
