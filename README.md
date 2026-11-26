@@ -4,7 +4,7 @@ This project recognises a spoken digit (0 to 9) from a short recording. It is th
 
 | | |
 |---|---|
-| Video demo | YouTube: _add link_ |
+| Video demo | https://youtu.be/R2_tj_N3HGw |
 | Live app | https://voice-digits.onrender.com (free plan: the first visit after 15 idle minutes takes about a minute) |
 | API docs | https://voice-digits.onrender.com/docs |
 | Notebook | [notebook/voice_digits_pipeline.ipynb](notebook/voice_digits_pipeline.ipynb) |
